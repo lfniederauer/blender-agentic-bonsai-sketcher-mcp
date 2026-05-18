@@ -3,3 +3,7 @@ __pycache__/
 .venv/
 build/
 *.mcpb
+
+# Local secrets (never commit)
+.env
+mcp/.env

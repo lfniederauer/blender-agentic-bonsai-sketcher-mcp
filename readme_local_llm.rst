@@ -25,7 +25,7 @@ with a brief explanation of what they do.
 ``blender_mcp``: ``./mcp/``
    The MCP server that provides tools and connects the ``chat_client`` to ``blender_mcp_addon``.
 
-``blender_mcp_addon``: ``./addon/``
+``blender_mcp_addon``: ``./mcp/blender_mcp_addon/``
    The Blender MCP add-on which connects Blender to the ``blender_mcp`` server.
 
 ``blender``: (external project)
@@ -57,7 +57,7 @@ Install Requirements & Blender MCP:
 Build the Blender Extension:
    .. code-block::
 
-      blender -c extension build --source-dir ./addon/blender_mcp_addon
+      blender -c extension build --source-dir ./mcp/blender_mcp_addon
       blender -c extension install-file blender_mcp_addon-0.1.0.zip --repo=user_default
 
 Download a Model via LLAMA.cpp:

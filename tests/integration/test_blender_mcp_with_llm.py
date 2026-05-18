@@ -575,7 +575,7 @@ class TestChatClient(unittest.TestCase):
         # -----------
         # Build addon
         with _StatusReport("Building addon") as st:
-            addon_src = os.path.join(_REPO_DIR, "addon", "blender_mcp_addon")
+            addon_src = os.path.join(_REPO_DIR, "mcp", "blender_mcp_addon")
             _run_blender(
                 [
                     blender_bin, "--command", "extension", "build",

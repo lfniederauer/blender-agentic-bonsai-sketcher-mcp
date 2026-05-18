@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 Luis N.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Isolated stack for unit and HTTP MCP tests.
+# Blender must run on the host for test_blender (see Makefile test_blender).
+name: blender-mcp-test
+
+services:
+  blender-mcp:
+    build:
+      context: ../mcp
+      dockerfile: Dockerfile
+    container_name: blender-mcp-test-server
+    network_mode: host
+    command: >
+      sh -lc "blender-mcp --transport http --host 0.0.0.0 --port $${BLENDER_MCP_TEST_HTTP_PORT:-18050}"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - BLENDER_MCP_HOST=127.0.0.1
+      - BLENDER_MCP_PORT=${BLENDER_MCP_PORT:-9876}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${BLENDER_MCP_TEST_HTTP_PORT:-18050}/health').read()\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  test:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile
+    network_mode: host
+    depends_on:
+      blender-mcp:
+        condition: service_healthy
+    environment:
+      - BLENDER_MCP_HTTP_URL=http://127.0.0.1:${BLENDER_MCP_TEST_HTTP_PORT:-18050}/
+      - BLENDER_MCP_TEST_IN_DOCKER=1
+      - BLENDER_MCP_PORT=${BLENDER_MCP_PORT:-9876}
+    profiles:
+      - test

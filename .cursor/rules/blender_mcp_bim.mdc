@@ -1,0 +1,13 @@
+---
+description: Prefer BlenderMcpServer tools for BIM and scene work
+alwaysApply: true
+---
+
+# Blender MCP + BIM Workflow
+
+- For scene, viewport, and IFC/Bonsai tasks in this workspace, call Blender MCP tools first.
+- Follow the session guidance in [workspace_config/guidelines.md](file:///home/lfn/projetos_bim/workspace_config/guidelines.md).
+- **Before MCP investigation or CAD Sketcher / slab profile work**, read [agents/knowledge/](file:///home/lfn/projetos_bim/blender_mcp/agents/knowledge/README.md) or apply [.cursor/rules/blender_mcp_agent_knowledge.mdc](file:///home/lfn/projetos_bim/blender_mcp/.cursor/rules/blender_mcp_agent_knowledge.mdc).
+- Start BIM workflows with `bim_status`, then load/query/edit/sync/save in order.
+- Use `execute_blender_code` only when no dedicated `bim_*` tool exists (Sketcher state uses `sk.entities.all`).
+- Ask before destructive edits.

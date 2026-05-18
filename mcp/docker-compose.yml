@@ -1,0 +1,70 @@
+# SPDX-FileCopyrightText: 2026 Luis N.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+services:
+  bim-agent:
+    build:
+      context: ..
+      dockerfile: agents/Dockerfile
+    container_name: bim-agent-runner
+    # Same host networking as blender-mcp so the runner can reach MCP on 127.0.0.1.
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ADK_SUPPRESS_EXPERIMENTAL_FEATURE_WARNINGS=true
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - BLENDER_MCP_HTTP_URL=http://127.0.0.1:${BLENDER_MCP_HTTP_PORT:-8050}/
+      - BLENDER_MCP_HTTP_PORT=${BLENDER_MCP_HTTP_PORT:-8050}
+      - BIM_AGENT_HTTP_PORT=${BIM_AGENT_HTTP_PORT:-8060}
+    command: >
+      sh -lc "if [ -z \"$${GEMINI_API_KEY}\" ]; then
+      echo 'WARNING: GEMINI_API_KEY is not set. Set it in mcp/.env (see mcp/.env.example) or export it before docker compose up. BIM agent LLM calls will fail.' >&2;
+      fi;
+      exec python -m uvicorn agents.http_app:app --host 0.0.0.0 --port $${BIM_AGENT_HTTP_PORT:-8060}"
+    depends_on:
+      blender-mcp:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${BIM_AGENT_HTTP_PORT:-8060}/health').read()\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  blender-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blender-mcp-server
+    # Need access to Blender's local TCP socket (127.0.0.1:9876) running on the host.
+    # With bridge networking, `localhost` would point to the container, not the host.
+    network_mode: host
+    command: >
+      sh -lc "blender-mcp --transport http --host 0.0.0.0 --port $${BLENDER_MCP_HTTP_PORT:-8050}"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - BLENDER_MCP_HOST=127.0.0.1
+      - BLENDER_MCP_PORT=9876
+      # ADK agent runner uses streamable HTTP at the service root (see agents/README.md).
+      - BLENDER_MCP_HTTP_PORT=${BLENDER_MCP_HTTP_PORT:-8050}
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${BLENDER_MCP_HTTP_PORT:-8050}/health').read()\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

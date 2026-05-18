@@ -15,8 +15,9 @@ import sys
 
 # Directories to scan.
 _SCAN_DIRS = (
+    os.path.join("agents"),
     os.path.join("mcp"),
-    os.path.join("addon"),
+    os.path.join("tests"),
     os.path.join("chat_client"),
 )
 
@@ -45,8 +46,10 @@ def main() -> int:
                     continue
                 filepath = os.path.join(dirpath, filename)
                 with open(filepath, "r", encoding="utf-8") as fh:
-                    first_line = fh.readline()
-                if "SPDX" not in first_line:
+                    header = "".join(fh.readline() for _ in range(12))
+                if not header.strip():
+                    continue
+                if "SPDX" not in header:
                     print("Missing SPDX in: {:s}".format(os.path.relpath(filepath, repo_root)))
                     fail = 1
                 else:

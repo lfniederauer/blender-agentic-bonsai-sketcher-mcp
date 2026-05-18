@@ -6,11 +6,14 @@ build-backend = "setuptools.build_meta"
 name = "blender-mcp"
 version = "1.0.0"
 description = "MCP server for Blender"
+authors = [{ name = "Luis N.", email = "lfniederauer@gmail.com" }]
 requires-python = ">=3.10"
 dependencies = [
     "docutils",
+    "fastapi>=0.115.0",
     "mcp[cli]>=1.2.0",
     "pyyaml",
+    "uvicorn>=0.30.0",
 ]
 
 [project.scripts]
@@ -18,6 +21,7 @@ blender-mcp = "blmcp:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["blmcp*"]
 
 [tool.setuptools.package-data]
 "blmcp" = [

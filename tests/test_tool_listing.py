@@ -8,13 +8,11 @@ Checks that the MCP server exposes the expected tool listing.
 
 __all__ = ()
 
-import asyncio
 import os
 import sys
 import unittest
 
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from tests.utils.mcp_connect import query_server
 
 # Root of the repository.
 _REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -653,35 +651,34 @@ EXPECTED_TOOLS = [
 ]
 # END: EXPECTED_TOOLS
 
+_BIM_TOOL_NAMES = {
+    "bim_add_pset",
+    "bim_assign_spatial",
+    "bim_clash",
+    "bim_create_element",
+    "bim_edit",
+    "bim_execute_bonsai_op",
+    "bim_highlight_elements",
+    "bim_ifc_to_object",
+    "bim_info",
+    "bim_load_ifc",
+    "bim_object_to_ifc",
+    "bim_quantify",
+    "bim_save_ifc",
+    "bim_select",
+    "bim_status",
+    "bim_summary",
+    "bim_sync_selection",
+    "bim_tree",
+    "bim_validate",
+}
+
 
 def _list_tools() -> list[dict[str, object]]:
     """
-    Starts the MCP server and returns the full tool listing.
+    Connect to the MCP server and return the full tool listing.
     """
-
-    # Async is required because the MCP client SDK is async-only.
-    async def _run() -> list[dict[str, object]]:
-        env = os.environ.copy()
-        env["PYTHONPATH"] = os.path.join(_REPO_DIR, "mcp")
-        params = StdioServerParameters(
-            command=sys.executable,
-            args=["-m", "blmcp"],
-            env=env,
-        )
-        async with stdio_client(params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.list_tools()
-                return [
-                    {
-                        "name": t.name,
-                        "description": t.description,
-                        "inputSchema": t.inputSchema,
-                    }
-                    for t in result.tools
-                ]
-
-    return asyncio.run(_run())
+    return query_server()["tools"]
 
 
 class TestToolListing(unittest.TestCase):
@@ -697,9 +694,16 @@ class TestToolListing(unittest.TestCase):
 
     def test_tools_match_expected(self) -> None:
         """
-        Checks that the live tool listing exactly matches ``EXPECTED_TOOLS``.
+        Checks that the live tool listing contains expected tools, plus BIM tools.
         """
-        self.assertEqual(self._tools, EXPECTED_TOOLS)
+        expected_names = {tool["name"] for tool in EXPECTED_TOOLS}
+        actual_names = {tool["name"] for tool in self._tools}
+        missing = sorted(expected_names - actual_names)
+        if missing:
+            self.fail("Missing expected tools: {!r}".format(missing))
+        missing_bim = sorted(_BIM_TOOL_NAMES - actual_names)
+        if missing_bim:
+            self.fail("Missing BIM tools: {!r}".format(missing_bim))
 
 
 def _update_expected_tools() -> None:

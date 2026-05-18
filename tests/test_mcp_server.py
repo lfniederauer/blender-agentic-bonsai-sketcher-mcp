@@ -13,7 +13,6 @@ Does not require Blender. Run with::
 __all__ = ()
 
 import ast
-import asyncio
 import functools
 import importlib
 import os
@@ -25,8 +24,8 @@ from unittest import mock
 from typing import Any
 
 import yaml
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+
+from tests.utils.mcp_connect import call_server_tool, query_server
 
 # Root of the repository.
 _REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -100,76 +99,18 @@ def _prompt_data_paths(instructions: str) -> list[str]:
     return re.findall(r"`(data/[^`]+)`", instructions)
 
 
-def _server_env() -> dict[str, str]:
-    """
-    Return an environment dict for the MCP server subprocess.
-    """
-    env = os.environ.copy()
-    env["PYTHONPATH"] = os.path.join(_REPO_DIR, "mcp")
-    return env
-
-
 def _query_server() -> dict[str, Any]:
     """
-    Launch the MCP server, initialize, fetch metadata, and return it all.
+    Connect to the MCP server, initialize, fetch metadata, and return it all.
     """
-
-    # Async is required because the MCP client SDK is async-only.
-    async def _run() -> dict[str, Any]:
-        params = StdioServerParameters(
-            command=sys.executable,
-            args=["-m", "blmcp"],
-            env=_server_env(),
-        )
-        async with stdio_client(params) as (read, write):
-            async with ClientSession(read, write) as session:
-                init_result = await session.initialize()
-                tools_result = await session.list_tools()
-                return {
-                    "server_info": init_result.serverInfo,
-                    "instructions": init_result.instructions or "",
-                    "tools": [
-                        {
-                            "name": t.name,
-                            "description": t.description or "",
-                            "inputSchema": t.inputSchema,
-                        }
-                        for t in tools_result.tools
-                    ],
-                }
-
-    return asyncio.run(_run())
+    return query_server()
 
 
 def _call_server_tool(name: str, arguments: dict[str, object]) -> dict[str, Any]:
     """
-    Launch the MCP server, call tool *name* with *arguments*, return the
-    JSON-decoded result payload from the first text content block.
+    Call tool *name* and return the JSON-decoded result payload.
     """
-    import json
-
-    async def _run() -> dict[str, Any]:
-        params = StdioServerParameters(
-            command=sys.executable,
-            args=["-m", "blmcp"],
-            env=_server_env(),
-        )
-        async with stdio_client(params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                call_result = await session.call_tool(name, arguments)
-                if call_result.isError:
-                    raise RuntimeError(
-                        "Tool {:s} returned error: {!r}".format(name, call_result.content)
-                    )
-                # FastMCP serialises dict return values as a single JSON
-                # text-content block.
-                text = call_result.content[0].text  # type: ignore[attr-defined]
-                payload = json.loads(text)
-                assert isinstance(payload, dict)
-                return payload
-
-    return asyncio.run(_run())
+    return call_server_tool(name, arguments)
 
 
 # ---------------------------------------------------------------------------

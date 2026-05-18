@@ -4,17 +4,30 @@
 export
 
 PYTHON ?= python
-PYTHON_SOURCE_DIRS_TO_CHECK = mcp/blmcp/ addon/blender_mcp_addon/ chat_client/ _misc/
+PYTHON_SOURCE_DIRS_TO_CHECK = mcp/blmcp/ mcp/blender_mcp_addon/ chat_client/ _misc/
 
 define HELP_TEXT
 
 Targets
-   * test:              Run unit tests.
+   * test:              Run unit tests in Docker (HTTP MCP + test container).
+   * test_up:           Start blender-mcp test stack (HTTP on BLENDER_MCP_HTTP_PORT).
+   * test_down:         Stop blender-mcp test stack.
+   * test_blender:      Blender integration tests (host Blender + Docker MCP HTTP).
+   * test_local:        Run unit tests on the host (stdio MCP, no Docker).
    * test_rst_parse:    Run unit tests for RST manual/API doc parsing.
    * test_rst_search:   Run unit tests for the RST text-search layer.
    * test_integration:  Run integration tests (requires BLENDER_BIN).
                         Loads .env if present (e.g. ANTHROPIC_API_KEY).
                         Uses .test_venv (delete to force a rebuild).
+   * build:             Build MCP/agent Docker images (mcp/docker-compose.yml).
+   * run:               Start MCP stack in the background (no rebuild).
+   * run-build:         Build and start MCP stack in the background.
+   * install_agents:    Install Google ADK agent dependencies from agents/requirements.txt.
+   * run_agent:         Run BIM ADK coordinator once via Docker Compose (QUERY='...').
+                        Starts blender-mcp if needed; uses mcp/.env (GEMINI_API_KEY).
+   * run_agent_web:     Run ADK web UI with agents/main.py entrypoint.
+   * agents_up:         Alias for run-build (MCP HTTP + optional BIM agent).
+   * agents_down:       Stop MCP stack (alias: make down).
 
      List all tests:    make test_integration TESTS_LIST=1
      Run tests:         make test_integration TESTS=TestChatClient.test_name
@@ -77,19 +90,57 @@ Environment Variables
    LLAMA_SERVER_VERBOSE
                        When set, forward llama-server output to
                        the terminal.
+   GEMINI_API_KEY      API key used by Google ADK model calls.
+   BLENDER_MCP_HTTP_URL
+                       HTTP MCP endpoint used by agents and Docker tests
+                       (default: http://127.0.0.1:8050/).
+   BLENDER_MCP_TEST_HTTP_PORT
+                       Port for blender-mcp HTTP in the Docker *test* stack
+                       (default: 18050; avoids clashing with production 8050).
+   BLENDER_MCP_HTTP_PORT
+                       Port for blender-mcp HTTP in mcp/docker-compose.yml
+                       (default: 8050).
+   BIM_AGENT_HTTP_PORT
+                       Port for the Docker BIM agent HTTP API (default: 8060).
 
 endef
+
+TEST_COMPOSE = docker compose -f tests/docker-compose.test.yml
+MCP_COMPOSE = docker compose -f mcp/docker-compose.yml
+# Dedicated port for the test stack (avoids clashing with mcp/docker-compose on 8050).
+BLENDER_MCP_TEST_HTTP_PORT ?= 18050
+BLENDER_MCP_HTTP_PORT ?= 8050
+BLENDER_MCP_HTTP_URL ?= http://127.0.0.1:$(BLENDER_MCP_TEST_HTTP_PORT)/
+export BLENDER_MCP_TEST_HTTP_PORT
+export BLENDER_MCP_HTTP_URL
 export HELP_TEXT
 
 help:
 	@echo "$$HELP_TEXT"
 
-test:
-	$(PYTHON) tests/test_tool_listing.py
+test: test_up
+	$(TEST_COMPOSE) --profile test run --rm --build test
+	$(MAKE) test_down
+
+test_up:
+	$(TEST_COMPOSE) up -d --build blender-mcp
+
+test_down:
+	$(TEST_COMPOSE) down --remove-orphans
+
+test_local:
 	$(PYTHON) tests/test_rst_parse.py
 	$(PYTHON) tests/test_rst_search.py
 	$(PYTHON) tests/test_mcp_server.py
-	$(PYTHON) tests/test_blender_mcp_with_blender.py
+	$(PYTHON) tests/test_tool_listing.py
+	$(PYTHON) -m pytest tests/test_knowledge_loader.py -q
+
+test_blender: test_up
+	@command -v "$(BLENDER_BIN)" >/dev/null 2>&1 || command -v blender >/dev/null 2>&1 || { \
+		echo "ERROR: set BLENDER_BIN or install blender for test_blender"; exit 1; }
+	BLENDER_MCP_HTTP_URL="$(BLENDER_MCP_HTTP_URL)" BLENDER_MCP_PORT="$(BLENDER_MCP_PORT)" \
+		$(PYTHON) tests/test_blender_mcp_with_blender.py
+	$(MAKE) test_down
 
 test_rst_parse:
 	$(PYTHON) tests/test_rst_parse.py
@@ -103,6 +154,39 @@ ifdef TESTS_LIST
 else
 	$(PYTHON) tests/integration/test_blender_mcp_with_llm.py $(TESTS)
 endif
+
+install_agents:
+	$(PYTHON) -m pip install -r agents/requirements.txt
+
+run_agent:
+	$(MCP_COMPOSE) up -d --build blender-mcp
+	$(MCP_COMPOSE) run --rm --build --no-deps bim-agent \
+		python -m agents.main \
+		$$(if [ "$$ADK_TRACE" = "1" ]; then echo --trace; fi) \
+		"$${QUERY:-bim_status and summarize the scene}"
+
+run_agent_web:
+	@if [ -z "$$GEMINI_API_KEY" ]; then \
+		export GEMINI_API_KEY=$$(grep '^GEMINI_API_KEY=' .env 2>/dev/null | sed 's/^GEMINI_API_KEY=//'); \
+	fi; \
+	if [ -z "$$BLENDER_MCP_HTTP_URL" ]; then \
+		export BLENDER_MCP_HTTP_URL=$$(grep '^BLENDER_MCP_HTTP_URL=' .env 2>/dev/null | sed 's/^BLENDER_MCP_HTTP_URL=//'); \
+	fi; \
+	PYTHONPATH=. adk web agents/main.py
+
+build:
+	$(MCP_COMPOSE) build
+
+run:
+	$(MCP_COMPOSE) up -d
+
+run-build:
+	$(MCP_COMPOSE) up -d --build
+
+agents_up: run-build
+
+agents_down down:
+	$(MCP_COMPOSE) down
 
 format:
 	@for d in mcp addon _misc tests chat_client; do \
@@ -148,3 +232,5 @@ update_reference_manual:
 update_reference_api:
 	@test -n "$(API_DIR)" || { echo "Usage: make update_reference_api API_DIR=/path/to/api"; exit 1; }
 	$(PYTHON) _misc/update_reference_api.py "$(API_DIR)"
+
+.PHONY: test test_up test_down test_local test_blender build run run-build install_agents run_agent run_agent_web agents_up agents_down down

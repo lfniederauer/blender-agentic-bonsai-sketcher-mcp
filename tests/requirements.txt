@@ -1,0 +1,3 @@
+# Test runner dependencies (mcp package installed separately in the Docker image).
+pytest>=8.0
+httpx>=0.27.0

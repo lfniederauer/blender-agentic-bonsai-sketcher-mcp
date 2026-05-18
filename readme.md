@@ -1,140 +1,436 @@
-# Blender MCP
+# Blender Agentic Bonsai Sketcher MCP
 
-## Overview
+This repository is a BIM-focused fork of [Blender Lab's Blender MCP][Blender MCP].
+It keeps the original Blender MCP bridge, then extends it into an IFC-aware
+workspace for Blender, Bonsai, IfcOpenShell, CAD Sketcher workflows, and
+multi-agent automation.
 
-A lightweight MCP (Model Context Protocol) server for Blender.
-It offers a natural language interface with Blender's Python API,
-improving access to documentation, and allowing users to explore
-and understand complex setups.
+> Upstream Blender MCP describes itself as "a lightweight MCP (Model Context
+> Protocol) server for Blender" that gives assistants a natural-language path to
+> Blender's Python API, bundled documentation, and scene inspection.
 
-Read the documentation at [blender.org/lab/mcp-server](https://www.blender.org/lab/mcp-server/)
+That upstream work is the foundation here. This fork changes the emphasis from a
+small general Blender bridge to an agentic BIM lab: inspect the scene, query or
+edit IFC semantics through Bonsai/IfcOpenShell, coordinate specialist agents, and
+keep repeatable runbooks for workflows that are easy to get wrong by hand.
 
-----
+## What This Fork Adds
 
-The project is deliberately small, maintainable, and does no more than
-necessary. It has two components that communicate over a TCP socket:
+- BIM and IFC MCP tools for status, loading, saving, selection, spatial trees,
+  validation, clash checks, property sets, quantity extraction, Bonsai operator
+  calls, and Blender/IFC object mapping.
+- Streamable HTTP transport and Docker Compose services for running the MCP
+  server as an HTTP endpoint instead of only stdio.
+- A Google ADK BIM multi-agent runner with coordinator, geometry, appearance,
+  properties, cost, research, and inspection specialists.
+- Agent knowledge files under `agents/knowledge/` for Blender MCP, Bonsai, CAD
+  Sketcher, and slab-from-sketch workflows.
+- Workspace rules and local Cursor MCP configuration for repeatable BIM sessions.
+- A relocated Blender add-on source at `mcp/blender_mcp_addon/`, keeping the TCP
+  bridge that talks to the running Blender process.
 
-- A **Blender add-on** that runs inside Blender and executes requests.
-- An **MCP server** that runs as a separate process, launched by the
-  MCP client (e.g. [Llama.cpp](https://projects.blender.org/lab/blender_mcp/wiki/Llama.cpp)).
+## Architecture
 
-The data flow is:
+The core communication path is still inherited from Blender MCP:
+
+```text
+MCP client -> blender-mcp server -> TCP socket -> Blender MCP add-on -> Blender
 ```
-MCP Client  ⇐ MCP/stdio ⇒  blender-mcp  ⇐ TCP socket ⇒  Blender Add-on
+
+This fork adds an HTTP and agent layer around that path:
+
+```text
+HTTP or ADK client -> BIM agent runner -> blender-mcp HTTP -> Blender add-on -> Bonsai / IfcOpenShell / Blender
 ```
 
+The important directories are:
 
-## Blender Add-on
+- `mcp/blmcp/`: MCP server package and auto-discovered tool modules.
+- `mcp/blmcp/tools/`: Blender, viewport, documentation, render, and BIM tools.
+- `mcp/blmcp/tools_helpers/`: shared helpers, including Bonsai/IfcOpenShell code
+  generation helpers.
+- `mcp/blender_mcp_addon/`: Blender extension that runs inside Blender and
+  executes requests from the MCP server.
+- `agents/`: Google ADK coordinator and specialist agents.
+- `agents/knowledge/`: curated workflow notes loaded into agents and referenced
+  by Cursor rules.
+- `mcp/docker-compose.yml`: local HTTP deployment for the MCP service and BIM
+  agent runner.
 
-Located in ``addon/blender_mcp_addon/``.
+## BIM Session Flow
 
-A Blender extension that allows the MCP server to communicate with a
-running Blender instance. It must be installed and enabled for any of
-the MCP tools to work.
+For IFC work, keep IFC as the semantic source of truth and start every session by
+checking the runtime state:
 
-The add-on provides a preferences panel for configuring the host, port,
-and an optional auto-start setting.
+1. Start Blender and enable the MCP add-on.
+2. Ensure Bonsai and IfcOpenShell are installed in Blender.
+3. Run `bim_status`.
+4. Load an IFC model with `bim_load_ifc` when no model is active.
+5. Inspect with `bim_summary`, `bim_tree`, `bim_select`, and `bim_info`.
+6. Author or mutate through `bim_create_element`, `bim_add_pset`,
+   `bim_assign_spatial`, `bim_edit`, or `bim_execute_bonsai_op`.
+7. Sync Blender and IFC selection with `bim_object_to_ifc`, `bim_ifc_to_object`,
+   `bim_sync_selection`, and `bim_highlight_elements`.
+8. Validate, quantify, clash-check, and save with `bim_validate`,
+   `bim_quantify`, `bim_clash`, and `bim_save_ifc`.
 
-### Functionality Overview
+Use `execute_blender_code` only when a dedicated `bim_*` tool is missing or when
+you need low-level inspection, such as CAD Sketcher state.
 
-Note that this is intended to be a fairly minimal add-on.
+## Quick Start
 
-Connectivity
-   - Auto-start (optional), is non-blocking any issues can be viewed from the preferences.
-   - Configurable polling intervals (active and idle rates) from preferences to avoid excessive overhead.
-   - Client timeout protection - stalled connections are evicted.
-   - Start/stop operators accessible from the preferences panel.
-   - Deferred responses are supported only by the interactive add-on server;
-     background mode requires requests to complete synchronously and rejects deferred results.
+1. Install and enable the MCP add-on in Blender (`mcp/blender_mcp_addon/`).
+2. Start the add-on TCP server in Blender (default `127.0.0.1:9876`).
+3. Copy `mcp/.env.example` to `mcp/.env` and set `GEMINI_API_KEY` for agent runs.
+4. From the repository root:
 
+```bash
+# MCP HTTP + BIM agent runner (background)
+make agents_up
 
+# One-shot coordinator query (starts blender-mcp if needed)
+make run_agent QUERY="bim_status and summarize the scene"
+```
 
+Stop the stack: `make agents_down` (or `make down`). Run `make help` for all targets.
 
-## MCP Server
+To hook up **Cursor**, **Claude Desktop**, or **ChatGPT Desktop**, see
+[Connect Your MCP Client](#connect-your-mcp-client).
 
-Located in ``mcp/blmcp/``, installed as a Python package with the
-entry point ``blender-mcp``.
+### Docker Compose (recommended for HTTP + agents)
 
-An MCP client launches this process and communicates with it over
-stdio. The server connects to the add-on's TCP socket to relay
-requests to Blender.
+From the repository root (wraps `mcp/docker-compose.yml`):
 
-``mcp/blmcp/data/``
-   Data files bundled with the package.
+```bash
+make build          # build images only
+make run            # start MCP + agent runner (no rebuild)
+make run-build      # build and start (same as make agents_up)
+make agents_down    # stop stack
+```
 
-   - ``prompts.yml`` provides instructions sent to the LLM at
-     connection time.
-   - ``api/`` contains Blender Python API reference in RST format.
-   - ``manual/`` contains Blender user manual excerpts in RST format.
+Or from `mcp/`:
 
-``mcp/blmcp/tools/``
-   Each tool is a single module, auto-discovered at startup.
-   Modules ending in ``_toolcode`` contain code that runs inside
-   Blender (sent to the addon for execution) and are skipped during
-   discovery.
+```bash
+cd mcp
+cp .env.example .env   # then edit GEMINI_API_KEY
+docker compose up --build -d
+docker compose ps
+docker compose down
+```
 
-``mcp/blmcp/tools_helpers/``
-   Shared utilities used by tools. Tools should not import from each
-   other; shared logic lives here instead.
+Default service endpoints:
 
+| Service | URL |
+| --- | --- |
+| MCP HTTP | `http://127.0.0.1:8050/` |
+| MCP health | `http://127.0.0.1:8050/health` |
+| BIM agent chat (NDJSON) | `http://127.0.0.1:8060/api/agent/chat` |
+| Agent health | `http://127.0.0.1:8060/health` |
 
-### Tools
-- ``execute_blender_code``
-   - Execute Python code in the connected Blender instance.
-- ``execute_blender_code_for_cli``
-   - Execute Python code in a background Blender process.
-- ``get_blendfile_summary_datablocks``
-   - Return a summary of the blend file: data-block counts, active workspace,
-   and render engine.
-- ``get_blendfile_summary_datablocks_for_cli``
-   - Return a data-block summary by opening *blend_file* in background
-   Blender.
-- ``get_blendfile_summary_missing_files``
-   - Report external file references that are missing from disk (images,
-   libraries, fonts, sounds, movie clips, caches, sequences).
-- ``get_blendfile_summary_missing_files_for_cli``
-   - Report missing file references by opening *blend_file* in background
-   Blender.
-- ``get_blendfile_summary_of_linked_libraries``
-   - Return a tree of directly and indirectly linked library files.
-- ``get_blendfile_summary_of_linked_libraries_for_cli``
-   - Return linked-library info by opening *blend_file* in background
-   Blender.
-- ``get_blendfile_summary_path_info``
-   - Simple/fast access to the blend file's path, save status, age, and
-   backups.
-- ``get_blendfile_summary_path_info_for_cli``
-   - Return path info by opening *blend_file* in background Blender.
-- ``get_blendfile_summary_usage_guess``
-   - Guess the primary use-cases of the current blend file (scored 0-100 with
-   certainty).
-- ``get_blendfile_summary_usage_guess_for_cli``
-   - Guess use-cases by opening *blend_file* in background Blender.
-- ``get_object_detail_summary``
-   - Return a structured summary of the object identified by *name*.
-- ``get_objects_summary``
-   - Return the scene's collection hierarchy and their objects.
-- ``get_python_api_docs``
-   - Return the Blender Python API docs for *identifier*, or list modules
-   matching a trailing-``*`` discovery pattern.
-- ``get_screenshot_of_area_as_image``
-   - Take a screenshot of a single Blender area and return it as a PNG image.
-- ``get_screenshot_of_window_as_image``
-   - Take a screenshot of the entire Blender window and return it as a PNG
-   image.
-- ``get_screenshot_of_window_as_json``
-   - Return a JSON description of the Blender window layout, areas, active
-   object, and selection.
-- ``jump_to_tab_by_name``
-   - Switch the active workspace tab to *name*.
-- ``jump_to_tab_by_space_type``
-   - Switch to a workspace whose main area matches *space_type*.
-- ``jump_to_view3d_object_by_name``
-   - Move the 3D viewport to focus on an object by *name*.
-- ``jump_to_view3d_object_data_by_name``
-   - Move the 3D viewport to the object whose data block matches *name*.
-- ``render_thumbnail_to_path``
-   - Render a small, low-quality thumbnail to *output_path* (temporarily
-   overrides settings).
-- ``render_viewport_to_path``
-   - Render the current scene to *output_path* using current render settings.
+Health checks:
+
+```bash
+curl -s http://127.0.0.1:8050/health
+curl -s http://127.0.0.1:8060/health
+```
+
+Start only MCP HTTP (no long-running agent API):
+
+```bash
+cd mcp && docker compose up -d --build blender-mcp
+```
+
+## Connect Your MCP Client
+
+Use any MCP-capable assistant (Cursor, Claude Desktop, ChatGPT Desktop, etc.) to
+talk to Blender through this server. Every client needs the same Blender-side
+setup first:
+
+1. Install and enable the add-on from `mcp/blender_mcp_addon/` in Blender.
+2. Start the add-on TCP server in Blender (default `127.0.0.1:9876`).
+3. Install the MCP package on the machine where the client runs (or use Docker
+   for HTTP — see below).
+
+Then pick how the client reaches the MCP server:
+
+| Mode | Who starts the server | Best for |
+| --- | --- | --- |
+| **HTTP** | You (`make run`, Docker, or `blender-mcp --transport http`) | Docker, several clients, CI |
+| **stdio** | The MCP client spawns `blender-mcp` | Claude Desktop, simple local setups |
+
+Verify the HTTP endpoint before wiring a client:
+
+```bash
+curl -s http://127.0.0.1:8050/health
+```
+
+A copy-paste reference for this repo lives in [`.mcp.json`](.mcp.json) (HTTP +
+stdio examples).
+
+### HTTP (streamable HTTP)
+
+Start the server, then point the client at the URL. With Docker Compose or
+`make run` / `make agents_up`, the default base URL is:
+
+`http://127.0.0.1:8050/`
+
+On the host without Docker:
+
+```bash
+cd mcp
+pip install -e .
+blender-mcp --transport http --host 127.0.0.1 --port 8050
+```
+
+> The CLI default HTTP port is `8000` if you omit `--port`; this fork’s Docker
+> and Compose stack use **`8050`** — keep client URLs aligned with whatever port
+> you actually started.
+
+**Cursor** — project file [`.mcp.json`](.mcp.json) at the repo root, or global /
+per-project `~/.cursor/mcp.json`. Restart Cursor after edits.
+
+```json
+{
+  "mcpServers": {
+    "blender": {
+      "url": "http://127.0.0.1:8050/"
+    }
+  }
+}
+```
+
+**OpenAI ChatGPT Desktop** — config file (create if missing):
+
+| OS | Path |
+| --- | --- |
+| macOS | `~/Library/Application Support/ChatGPT/chatgpt_mcp_config.json` |
+| Windows | `%APPDATA%\OpenAI\ChatGPT\chatgpt_mcp_config.json` |
+
+Use the same `mcpServers` + `url` shape as Cursor when your ChatGPT build
+supports remote MCP over HTTP. If only stdio is offered, use the stdio block in
+the next subsection instead.
+
+**Claude Desktop** — prefer **stdio** (see below). Some Claude Desktop builds
+do not persist MCP entries that use only a remote `url`; if the server
+disappears after restart, switch to stdio or use Claude Code / Cursor with HTTP.
+
+### stdio (client spawns `blender-mcp`)
+
+Install the server once:
+
+```bash
+pip install -e /path/to/blender_mcp/mcp
+# or: pip install git+https://projects.blender.org/lab/blender_mcp.git#subdirectory=mcp
+```
+
+Ensure `blender-mcp` is on the `PATH` seen by the desktop app (use the full path
+to your venv binary if needed).
+
+**Cursor** — [`.mcp.json`](.mcp.json) or `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "blender": {
+      "type": "stdio",
+      "command": "blender-mcp"
+    }
+  }
+}
+```
+
+With a virtualenv:
+
+```json
+{
+  "mcpServers": {
+    "blender": {
+      "type": "stdio",
+      "command": "/path/to/.venv/bin/blender-mcp"
+    }
+  }
+}
+```
+
+**Claude Desktop** — edit `claude_desktop_config.json`:
+
+| OS | Path |
+| --- | --- |
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+```json
+{
+  "mcpServers": {
+    "blender": {
+      "command": "blender-mcp"
+    }
+  }
+}
+```
+
+Or with an explicit Python module:
+
+```json
+{
+  "mcpServers": {
+    "blender": {
+      "command": "/path/to/.venv/bin/python",
+      "args": ["-m", "blmcp"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop after saving.
+
+**OpenAI ChatGPT Desktop** — same `command` / `args` pattern in
+`chatgpt_mcp_config.json` (paths in the HTTP table above).
+
+### Client troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| Connection refused (HTTP) | `make run` or `docker compose up` for `blender-mcp`; `curl` the `/health` URL |
+| `blender-mcp`: command not found | `pip install -e mcp/`; use absolute `command` in JSON |
+| Tools missing after config change | Fully quit and reopen the MCP client |
+| MCP works but Blender errors | Add-on disabled or TCP server not started in Blender |
+| `bim_*` failures | Bonsai/IfcOpenShell in Blender; run `bim_status` first |
+
+More workspace conventions:
+[workspace_config/guidelines.md](../workspace_config/guidelines.md).
+
+## Agent Runner
+
+The ADK layer is optional. It is useful when the work benefits from specialist
+roles instead of one general assistant:
+
+- `bim_coordinator`: routes work and assembles final answers.
+- `bim_geometry`: Blender geometry authoring and fixes.
+- `bim_appearance`: materials, viewport screenshots, and visual review.
+- `bim_properties`: IFC mapping, property sets, and Bonsai semantic edits.
+- `bim_costs`: quantity extraction and cost-reference support.
+- `bim_inspector`: validation, QA, and clash-checking.
+- `bim_researcher`: standards, references, and market information when enabled.
+
+**Prerequisites:** Blender running with the add-on connected, `GEMINI_API_KEY` in
+`mcp/.env`, and the MCP HTTP service reachable (Docker or host on port `8050`).
+
+### One-shot CLI (Docker Compose)
+
+`make run_agent` starts `blender-mcp` if needed, then runs a one-off `bim-agent`
+container with `python -m agents.main`:
+
+```bash
+# Default query
+make run_agent
+
+# Custom query
+make run_agent QUERY="bim_status, summarize the scene, and list validation issues"
+
+# ADK coordination trace on stderr
+ADK_TRACE=1 make run_agent QUERY="bim_tree for the active site"
+```
+
+### Sample queries
+
+These work with `make run_agent QUERY="..."` or the HTTP chat API below. The
+coordinator picks specialists as needed.
+
+```bash
+# Session check and scene overview
+make run_agent QUERY="Run bim_status, then bim_summary and a short scene overview"
+
+# IFC inspection
+make run_agent QUERY="bim_tree from project down to storeys; list walls on the ground floor"
+
+# Validation and QA
+make run_agent QUERY="bim_validate and report the most important errors"
+
+# Properties and authoring
+make run_agent QUERY="For the selected wall, show bim_info and suggest a Pset_WallCommon update"
+
+# Quantities
+make run_agent QUERY="bim_quantify base quantities for all slabs in the model"
+```
+
+### HTTP agent API (long-running stack)
+
+With `make agents_up` (or `docker compose up -d` in `mcp/`), chat over NDJSON:
+
+```bash
+curl -N -X POST http://127.0.0.1:8060/api/agent/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"bim_status and summarize the scene"}'
+```
+
+Multi-turn style (last non-empty string in `messages` is used):
+
+```bash
+curl -N -X POST http://127.0.0.1:8060/api/agent/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":["bim_status","List open validation issues from bim_validate"]}'
+```
+
+### ADK web UI (host Python)
+
+For interactive debugging with the ADK web UI, install dependencies on the host
+and run (not Docker):
+
+```bash
+make install_agents
+make run_agent_web
+```
+
+Then open the ADK web UI and use `agents/main.py` as the entrypoint.
+
+More detail: [agents/README.md](agents/README.md).
+
+## Relationship To Upstream
+
+This project is not a replacement for Blender Lab's work. It is a downstream fork
+for BIM experimentation and automation. The Blender MCP add-on, server shape,
+tool discovery pattern, bundled Blender API/manual references, and many original
+scene tools come from [Blender MCP][Blender MCP].
+
+The fork-specific work focuses on:
+
+- IFC/Bonsai integration through MCP tools.
+- Agent orchestration for BIM tasks.
+- HTTP deployment and Docker packaging.
+- Practical runbooks for Blender MCP, Bonsai, CAD Sketcher, and slab workflows.
+
+When contributing changes that belong in the general Blender MCP server, prefer
+small upstreamable patches. Keep BIM-specific workflows in this fork unless they
+are broadly useful to Blender MCP users.
+
+## License And Third-Party Work
+
+The original Blender MCP source and Blender add-on files in this repository use
+`GPL-3.0-or-later` SPDX headers, and this fork should be treated as
+GPL-3.0-or-later unless a file states otherwise.
+
+IfcOpenShell is used as a dependency through Bonsai/IfcOpenShell workflows. Its
+library components remain under [LGPL], while Bonsai and other IfcOpenShell
+applications may use GPL-3.0-or-later as documented by the IfcOpenShell project.
+
+Credit and license boundaries matter here:
+
+- Blender MCP and Blender documentation references belong to the Blender project
+  and Blender Authors.
+- IfcOpenShell and Bonsai belong to the IfcOpenShell community and their
+  contributors.
+- The BIM MCP tools, ADK agent runner, workspace rules, and workflow knowledge in
+  this fork are fork-specific additions by **Luis N.** — see
+  [CONTRIBUTORS.md](CONTRIBUTORS.md).
+
+## Related Documentation
+
+- [MCP package README](mcp/README.md) — add-on install, Docker, BIM tool overview
+- [Agents README](agents/README.md) — ADK coordinator and specialist agents
+- [Agent knowledge base](agents/knowledge/README.md)
+- [Workspace guidelines](../workspace_config/guidelines.md) — BIM session rules and Cursor MCP notes
+
+[Blender MCP]: https://projects.blender.org/lab/blender_mcp "Blender MCP"
+[LGPL]: https://github.com/IfcOpenShell/IfcOpenShell/tree/master/COPYING.LESSER "LGPL-3.0-or-later"

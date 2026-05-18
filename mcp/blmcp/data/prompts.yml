@@ -121,3 +121,44 @@ initial_instructions: |
     * Use the world matrix for world-space reads, not manual composition of
       location/rotation/scale.
     * The 3D cursor is a persistent world-space reference used by many operations.
+
+  # BIM / IFC / Bonsai
+
+  BIM workflows run through Bonsai and IfcOpenShell inside Blender.
+  Prefer dedicated BIM tools over generic Python execution when available.
+
+  BIM tool inventory (common paths):
+    * `bim_status` -> readiness checks (Bonsai/IfcOpenShell/IFC loaded).
+    * `bim_summary` -> schema, project info, counts.
+    * `bim_tree` -> spatial hierarchy.
+    * `bim_select` -> selector queries.
+    * `bim_info` -> deep element inspection.
+    * `bim_validate` -> model validation.
+    * `bim_clash` -> geometric clash check (ifcquery required).
+    * `bim_load_ifc` / `bim_save_ifc` -> file IO.
+    * `bim_edit` -> low-level ifcopenshell.api mutation.
+    * `bim_create_element` / `bim_assign_spatial` / `bim_add_pset` -> authoring.
+    * `bim_quantify` -> quantity takeoff.
+    * `bim_execute_bonsai_op` -> bpy.ops.bim.* operator execution.
+    * `bim_object_to_ifc` / `bim_ifc_to_object` / `bim_sync_selection` / `bim_highlight_elements`
+      -> IFC <-> Blender object mapping and selection sync.
+
+  Suggested workflow order:
+    * Status -> Summary/Tree/Select -> Info/Validate/Clash -> Edit/Author -> Sync -> Save.
+
+  BIM edit recipes:
+    * Create entity: `bim_create_element(ifc_class="IfcWall", params="{}")`
+    * Add pset: `bim_add_pset(element_id=..., name="Pset_WallCommon", properties="{...}")`
+    * Low-level edit: `bim_edit(function_path="pset.edit_pset", params="{...}")`
+
+  IFC best practices:
+    * Treat IFC as the source of truth for BIM semantics (types, psets, quantities).
+    * Keep Blender object edits and IFC model edits synchronized.
+    * Before IFC queries/edits, verify an IFC model is loaded in Bonsai.
+    * For edits, prefer explicit API operations and report exactly what changed.
+    * After IFC edits, recommend saving the IFC model path explicitly.
+
+  Interoperability focus:
+    * Preserve GlobalId and relationship integrity when mutating data.
+    * Use schema-aware checks (IFC2X3/IFC4/IFC4X3) before creating/editing entities.
+    * Prefer non-destructive checks first: summary, tree, select, info, validate, clash.

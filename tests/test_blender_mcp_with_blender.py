@@ -52,6 +52,9 @@ if _REPO_DIR not in sys.path:
     sys.path.insert(0, _REPO_DIR)
 
 from tests.mcp_client import MCPClient
+from tests.utils.mcp_connect import mcp_http_url
+
+_USE_HTTP_MCP = mcp_http_url() is not None
 
 # Fixed ports for the test servers (background and foreground).
 _PORT_BACKGROUND = 9876
@@ -269,7 +272,7 @@ class _TestServerMixin:
         env = _blender_env(tmpdir)
 
         # Build the extension zip.
-        addon_src = os.path.join(_REPO_DIR, "addon", "blender_mcp_addon")
+        addon_src = os.path.join(_REPO_DIR, "mcp", "blender_mcp_addon")
         _run_blender(
             [
                 blender_bin, "--command", "extension", "build",
@@ -348,11 +351,20 @@ class _TestServerMixin:
         output = _drain_stdout(cls._blender_proc)
         _wait_for_port(cls._port, _TIMEOUT_STARTUP, cls._blender_proc, output)
 
-        mcp_env = _blender_env(tmpdir)
-        mcp_env["BLENDER_MCP_PORT"] = str(cls._port)
-        mcp_env["BLENDER_PATH"] = blender_bin
+        if _USE_HTTP_MCP:
+            from tests.mcp_client.http import MCPHttpClient
 
-        cls._client = MCPClient(shlex.split(blender_mcp), env=mcp_env)
+            http_url = mcp_http_url()
+            assert http_url is not None
+            os.environ["BLENDER_MCP_PORT"] = str(cls._port)
+            os.environ["BLENDER_PATH"] = blender_bin
+            cls._client = MCPHttpClient(http_url)
+        else:
+            mcp_env = _blender_env(tmpdir)
+            mcp_env["BLENDER_MCP_PORT"] = str(cls._port)
+            mcp_env["BLENDER_PATH"] = blender_bin
+            cls._client = MCPClient(shlex.split(blender_mcp), env=mcp_env)
+
         cls.addClassCleanup(cls._client.close)
         cls._client.initialize()
         _all_tools.update(cls._client.list_tools())
@@ -701,6 +713,15 @@ class _TestServerMixin:
                 },
             ],
         })
+
+    # -----------------------------------------------------------------
+    # BIM tools (availability checks).
+
+    def test_bim_status(self) -> None:
+        data = self._test_tool("bim_status")
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("bonsai_installed", data)
+        self.assertIn("ifcopenshell_installed", data)
 
     # -----------------------------------------------------------------
     # Navigation tools.
@@ -1059,6 +1080,10 @@ class TestBackgroundServer(_TestServerMixin, unittest.TestCase):
     _port = _PORT_BACKGROUND
 
 
+@unittest.skipIf(
+    _USE_HTTP_MCP,
+    "BLENDER_MCP_HTTP_URL is set (Docker HTTP MCP supports background mode only)",
+)
 class TestForegroundServer(_TestServerMixin, unittest.TestCase):
     """
     Run all tests against Blender without ``--background`` (full GUI).
@@ -1068,6 +1093,10 @@ class TestForegroundServer(_TestServerMixin, unittest.TestCase):
     _port = _PORT_FOREGROUND
 
 
+@unittest.skipIf(
+    _USE_HTTP_MCP,
+    "BLENDER_MCP_HTTP_URL is set (Docker HTTP MCP supports background mode only)",
+)
 class TestInteractiveServer(_TestServerMixin, unittest.TestCase):
     """
     Run all tests against Blender in interactive mode (timer-based polling).
@@ -1091,7 +1120,7 @@ def test_binaries_available() -> bool:
     if not shutil.which(blender_bin):
         print("ERROR: '{:s}' not found in PATH (set BLENDER_BIN)".format(blender_bin))
         ok = False
-    if not shutil.which(blender_mcp):
+    if not _USE_HTTP_MCP and not shutil.which(blender_mcp):
         print("ERROR: '{:s}' not found in PATH (set BLENDER_MCP)".format(blender_mcp))
         ok = False
     return ok

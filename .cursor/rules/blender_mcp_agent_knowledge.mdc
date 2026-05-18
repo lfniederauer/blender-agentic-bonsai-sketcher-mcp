@@ -1,0 +1,35 @@
+---
+description: Blender MCP + Bonsai runbooks and pitfalls from agents/knowledge (read before scene investigation or CAD Sketcher slab work)
+alwaysApply: false
+---
+
+# Agent knowledge (Blender MCP + Bonsai)
+
+Before investigating the scene, editing IFC, or working with **CAD Sketcher** sketches, read the relevant files under [agents/knowledge/](file:///home/lfn/projetos_bim/blender_mcp/agents/knowledge/README.md):
+
+| When | Read |
+|------|------|
+| Any MCP / `execute_blender_code` inspection | [mcp-blender-investigation.md](file:///home/lfn/projetos_bim/blender_mcp/agents/knowledge/mcp-blender-investigation.md) |
+| Slab footprint from named CAD Sketcher sketch | [bonsai-slab-from-cad-sketcher.md](file:///home/lfn/projetos_bim/blender_mcp/agents/knowledge/bonsai-slab-from-cad-sketcher.md) |
+
+## MCP pitfalls (do not repeat)
+
+- `get_object_detail_summary` parameter is **`name`**, not `object_name`.
+- CAD Sketcher data: use `bpy.context.scene.sketcher.entities.all` — not `entities` iteration, not `sketcher.sketches`.
+- Sketches (e.g. `planta`) are **`SlvsSketch` entities**, not `bpy.data.objects`; `get_objects_summary` will not list them.
+- Prefer `bim_*` tools; use `execute_blender_code` for Sketcher inspection or when no `bim_*` tool exists.
+- Session order: `bim_status` → query → edit → `bim_save_ifc`.
+
+## Slab from named sketch (summary)
+
+- **Property:** `BIMModelProperties.cad_sketch_profile_name` (enum of `SlvsSketch` names).
+- **Create:** `bim.add_slab_from_sketch` (Slab Tool → Sketch dropdown → import icon).
+- **Update:** select slab → same sketch in dropdown → `bim.edit_sketch_extrusion_profile` (refresh).
+- Mark reference edges as **Construction**; `BezierConverter` skips them.
+- No automatic sketch→slab sync; re-apply + `bim_save_ifc` after sketch edits.
+- **Deploy:** patched Bonsai in `IfcOpenShell/src/bonsai` must be loaded in Blender (`import_cad_sketcher`, not `CAD_Sketcher-main` alone).
+- **Errors / fix plan:** see *Correction context* in knowledge doc — **do not implement until the user commands**.
+
+## After UI validation
+
+Update status tables in the knowledge markdown files (MCP verified / UI verified).
