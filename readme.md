@@ -14,6 +14,12 @@ small general Blender bridge to an agentic BIM lab: inspect the scene, query or
 edit IFC semantics through Bonsai/IfcOpenShell, coordinate specialist agents, and
 keep repeatable runbooks for workflows that are easy to get wrong by hand.
 
+
+## Tutorial
+
+Walkthrough video: [Blender Agentic Bonsai Sketcher MCP](https://www.youtube.com/watch?v=AF4xjpy0iu0)
+
+
 ## What This Fork Adds
 
 - BIM and IFC MCP tools for status, loading, saving, selection, spatial trees,
