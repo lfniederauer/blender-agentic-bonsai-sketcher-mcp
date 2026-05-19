@@ -69,8 +69,8 @@ The location may vary with your system and python version, check and replace fil
 ```bash
 
 rm -rf ~/.config/blender/5.1/extensions/.local/lib/python3.13/site-packages/bonsai/bim/module
-cp -r ./IfcOpenShell/src/bonsai/bonsai/bim/module \ 
-  ~/.config/blender/5.1/extensions/.local/lib/python3.13/site-packages/bonsai/bim/module
+cp -r ./IfcOpenShell/src/bonsai/bonsai/bim/module \  ~/.config/blender/5.1/extensions/.local/lib/python3.13/site-packages/bonsai/bim/
+ll ~/.config/blender/5.1/extensions/.local/lib/python3.13/site-packages/bonsai/bim/module
 
 ```
 2. Start the add-on TCP server in Blender (default `127.0.0.1:9876`).
