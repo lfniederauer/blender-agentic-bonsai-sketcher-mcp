@@ -15,9 +15,9 @@ _mcp = create_mcp_server()
 configure_http_transport(mcp=_mcp, host="0.0.0.0", port=5001)
 
 app = FastAPI(
-    title="blender-mcp",
+    title="blender-agentic-bonsai-sketcher-mcp",
     version="1.0.0",
-    description="HTTP wrapper for Blender MCP server.",
+    description="HTTP wrapper for Blender agentic Bonsai / CAD Sketcher MCP server.",
 )
 app.mount("/", _mcp.streamable_http_app())
 

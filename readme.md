@@ -26,21 +26,19 @@ keep repeatable runbooks for workflows that are easy to get wrong by hand.
 - Agent knowledge files under `agents/knowledge/` for Blender MCP, Bonsai, CAD
   Sketcher, and slab-from-sketch workflows.
 - Workspace rules and local Cursor MCP configuration for repeatable BIM sessions.
-- A relocated Blender add-on source at `mcp/blender_mcp_addon/`, keeping the TCP
-  bridge that talks to the running Blender process.
 
 ## Architecture
 
 The core communication path is still inherited from Blender MCP:
 
 ```text
-MCP client -> blender-mcp server -> TCP socket -> Blender MCP add-on -> Blender
+MCP client -> blender-agentic-bonsai-sketcher-mcp server -> TCP socket -> Blender MCP add-on -> Blender
 ```
 
 This fork adds an HTTP and agent layer around that path:
 
 ```text
-HTTP or ADK client -> BIM agent runner -> blender-mcp HTTP -> Blender add-on -> Bonsai / IfcOpenShell / Blender
+HTTP or ADK client -> BIM agent runner -> blender-agentic-bonsai-sketcher-mcp HTTP -> Blender add-on -> Bonsai / IfcOpenShell / Blender
 ```
 
 The important directories are:
@@ -49,37 +47,15 @@ The important directories are:
 - `mcp/blmcp/tools/`: Blender, viewport, documentation, render, and BIM tools.
 - `mcp/blmcp/tools_helpers/`: shared helpers, including Bonsai/IfcOpenShell code
   generation helpers.
-- `mcp/blender_mcp_addon/`: Blender extension that runs inside Blender and
-  executes requests from the MCP server.
 - `agents/`: Google ADK coordinator and specialist agents.
 - `agents/knowledge/`: curated workflow notes loaded into agents and referenced
   by Cursor rules.
 - `mcp/docker-compose.yml`: local HTTP deployment for the MCP service and BIM
   agent runner.
 
-## BIM Session Flow
-
-For IFC work, keep IFC as the semantic source of truth and start every session by
-checking the runtime state:
-
-1. Start Blender and enable the MCP add-on.
-2. Ensure Bonsai and IfcOpenShell are installed in Blender.
-3. Run `bim_status`.
-4. Load an IFC model with `bim_load_ifc` when no model is active.
-5. Inspect with `bim_summary`, `bim_tree`, `bim_select`, and `bim_info`.
-6. Author or mutate through `bim_create_element`, `bim_add_pset`,
-   `bim_assign_spatial`, `bim_edit`, or `bim_execute_bonsai_op`.
-7. Sync Blender and IFC selection with `bim_object_to_ifc`, `bim_ifc_to_object`,
-   `bim_sync_selection`, and `bim_highlight_elements`.
-8. Validate, quantify, clash-check, and save with `bim_validate`,
-   `bim_quantify`, `bim_clash`, and `bim_save_ifc`.
-
-Use `execute_blender_code` only when a dedicated `bim_*` tool is missing or when
-you need low-level inspection, such as CAD Sketcher state.
-
 ## Quick Start
 
-1. Install and enable the MCP add-on in Blender (`mcp/blender_mcp_addon/`).
+1. Install and enable the MCP add-on in Blender: https://www.blender.org/lab/mcp-server/ "blender.org/lab/mcp-server/"
 2. Start the add-on TCP server in Blender (default `127.0.0.1:9876`).
 3. Copy `mcp/.env.example` to `mcp/.env` and set `GEMINI_API_KEY` for agent runs.
 4. From the repository root:
@@ -88,7 +64,7 @@ you need low-level inspection, such as CAD Sketcher state.
 # MCP HTTP + BIM agent runner (background)
 make agents_up
 
-# One-shot coordinator query (starts blender-mcp if needed)
+# One-shot coordinator query (starts blender-agentic-bonsai-sketcher-mcp if needed)
 make run_agent QUERY="bim_status and summarize the scene"
 ```
 
@@ -192,7 +168,7 @@ per-project `~/.cursor/mcp.json`. Restart Cursor after edits.
 ```json
 {
   "mcpServers": {
-    "blender": {
+    "blender-agentic-bonsai-sketcher-mcp": {
       "url": "http://127.0.0.1:8050/"
     }
   }

@@ -18,7 +18,7 @@ class AgentSettings(BaseSettings):
     blender_mcp_http_url: str = "http://127.0.0.1:8050/"
     mcp_request_timeout_seconds: float = 45.0
 
-    adk_model: str = "gemini-3.1-pro-preview"
+    adk_model: str = "gemini-3.1-flash-lite"
     adk_model_coordinator: str | None = None
     adk_model_researcher: str | None = None
     adk_model_geometry: str | None = None

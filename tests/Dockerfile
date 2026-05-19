@@ -24,6 +24,5 @@ RUN pip install --no-cache-dir -e ${APP_HOME}/mcp
 COPY agents ${APP_HOME}/agents
 COPY tests ${APP_HOME}/tests
 COPY _misc ${APP_HOME}/_misc
-COPY chat_client ${APP_HOME}/chat_client
 
 CMD ["python", "tests/run_unit_tests.py"]
