@@ -65,9 +65,17 @@ agent runner.
 
 Git clone the repo above. That is the integration between Bonsai and Sketcher. Then copy src/bonsai/bonsai/bim/module to your Blender IFC environment replacing modified files.
 
+The location may vary with your system and python version, check and replace files:
+```bash
+
+rm -rf ~/.config/blender/5.1/extensions/.local/lib/python3.13/site-packages/bonsai/bim/module
+cp -r ./IfcOpenShell/src/bonsai/bonsai/bim/module \ 
+  ~/.config/blender/5.1/extensions/.local/lib/python3.13/site-packages/bonsai/bim/module
+
+```
 2. Start the add-on TCP server in Blender (default `127.0.0.1:9876`).
 3. Copy `mcp/.env.example` to `mcp/.env` and set `GEMINI_API_KEY` for agent runs: [https://aistudio.google.com/app/api-keys](https://aistudio.google.com/app/api-keys)
-4. From the repository root:
+5. From the repository root:
 
 ```bash
 # MCP HTTP + BIM agent runner (background)
