@@ -1,6 +1,6 @@
 # Blender Agentic Bonsai Sketcher MCP
 
-This repository is a BIM-focused fork of [Blender Lab's Blender MCP][Blender MCP].
+This repository is a BIM-focused fork of [Blender Lab's Blender MCP](https://projects.blender.org/lab/blender_mcp).
 It keeps the original Blender MCP bridge, then extends it into an IFC-aware
 workspace for Blender, Bonsai, IfcOpenShell, CAD Sketcher workflows, and
 multi-agent automation.
@@ -17,14 +17,14 @@ keep repeatable runbooks for workflows that are easy to get wrong by hand.
 ## What This Fork Adds
 
 - BIM and IFC MCP tools for status, loading, saving, selection, spatial trees,
-  validation, clash checks, property sets, quantity extraction, Bonsai operator
-  calls, and Blender/IFC object mapping.
+validation, clash checks, property sets, quantity extraction, Bonsai operator
+calls, and Blender/IFC object mapping.
 - Streamable HTTP transport and Docker Compose services for running the MCP
-  server as an HTTP endpoint instead of only stdio.
+server as an HTTP endpoint instead of only stdio.
 - A Google ADK BIM multi-agent runner with coordinator, geometry, appearance,
-  properties, cost, research, and inspection specialists.
+properties, cost, research, and inspection specialists.
 - Agent knowledge files under `agents/knowledge/` for Blender MCP, Bonsai, CAD
-  Sketcher, and slab-from-sketch workflows.
+Sketcher, and slab-from-sketch workflows.
 - Workspace rules and local Cursor MCP configuration for repeatable BIM sessions.
 
 ## Architecture
@@ -46,18 +46,27 @@ The important directories are:
 - `mcp/blmcp/`: MCP server package and auto-discovered tool modules.
 - `mcp/blmcp/tools/`: Blender, viewport, documentation, render, and BIM tools.
 - `mcp/blmcp/tools_helpers/`: shared helpers, including Bonsai/IfcOpenShell code
-  generation helpers.
+generation helpers.
 - `agents/`: Google ADK coordinator and specialist agents.
 - `agents/knowledge/`: curated workflow notes loaded into agents and referenced
-  by Cursor rules.
+by Cursor rules.
 - `mcp/docker-compose.yml`: local HTTP deployment for the MCP service and BIM
-  agent runner.
+agent runner.
 
 ## Quick Start
 
-1. Install and enable the MCP add-on in Blender: https://www.blender.org/lab/mcp-server/ "blender.org/lab/mcp-server/"
+1. Install and enable the MCP add-on in Blender: [https://www.blender.org/lab/mcp-server/](https://www.blender.org/lab/mcp-server/)
+
+1.2 Install CadSketcher: [https://www.cadsketcher.com/](https://www.cadsketcher.com/)
+
+1.3 Install Bonsai: [https://docs.bonsaibim.org/quickstart/installation.html](https://docs.bonsaibim.org/quickstart/installation.html)
+
+1.4 Give Bonsai and Sketcher an integration: [https://github.com/lfniederauer/IfcOpenShell](https://github.com/lfniederauer/IfcOpenShell)
+
+Git clone the repo above. That is the integration between Bonsai and Sketcher. Then copy src/bonsai/bonsai/bim/module to your Blender IFC environment replacing modified files.
+
 2. Start the add-on TCP server in Blender (default `127.0.0.1:9876`).
-3. Copy `mcp/.env.example` to `mcp/.env` and set `GEMINI_API_KEY` for agent runs.
+3. Copy `mcp/.env.example` to `mcp/.env` and set `GEMINI_API_KEY` for agent runs: [https://aistudio.google.com/app/api-keys](https://aistudio.google.com/app/api-keys)
 4. From the repository root:
 
 ```bash
@@ -96,12 +105,14 @@ docker compose down
 
 Default service endpoints:
 
-| Service | URL |
-| --- | --- |
-| MCP HTTP | `http://127.0.0.1:8050/` |
-| MCP health | `http://127.0.0.1:8050/health` |
+
+| Service                 | URL                                    |
+| ----------------------- | -------------------------------------- |
+| MCP HTTP                | `http://127.0.0.1:8050/`               |
+| MCP health              | `http://127.0.0.1:8050/health`         |
 | BIM agent chat (NDJSON) | `http://127.0.0.1:8060/api/agent/chat` |
-| Agent health | `http://127.0.0.1:8060/health` |
+| Agent health            | `http://127.0.0.1:8060/health`         |
+
 
 Health checks:
 
@@ -125,14 +136,16 @@ setup first:
 1. Install and enable the add-on from `mcp/blender_mcp_addon/` in Blender.
 2. Start the add-on TCP server in Blender (default `127.0.0.1:9876`).
 3. Install the MCP package on the machine where the client runs (or use Docker
-   for HTTP — see below).
+  for HTTP — see below).
 
 Then pick how the client reaches the MCP server:
 
-| Mode | Who starts the server | Best for |
-| --- | --- | --- |
-| **HTTP** | You (`make run`, Docker, or `blender-mcp --transport http`) | Docker, several clients, CI |
-| **stdio** | The MCP client spawns `blender-mcp` | Claude Desktop, simple local setups |
+
+| Mode      | Who starts the server                                       | Best for                            |
+| --------- | ----------------------------------------------------------- | ----------------------------------- |
+| **HTTP**  | You (`make run`, Docker, or `blender-mcp --transport http`) | Docker, several clients, CI         |
+| **stdio** | The MCP client spawns `blender-mcp`                         | Claude Desktop, simple local setups |
+
 
 Verify the HTTP endpoint before wiring a client:
 
@@ -140,7 +153,7 @@ Verify the HTTP endpoint before wiring a client:
 curl -s http://127.0.0.1:8050/health
 ```
 
-A copy-paste reference for this repo lives in [`.mcp.json`](.mcp.json) (HTTP +
+A copy-paste reference for this repo lives in `[.mcp.json](.mcp.json)` (HTTP +
 stdio examples).
 
 ### HTTP (streamable HTTP)
@@ -159,10 +172,10 @@ blender-mcp --transport http --host 127.0.0.1 --port 8050
 ```
 
 > The CLI default HTTP port is `8000` if you omit `--port`; this fork’s Docker
-> and Compose stack use **`8050`** — keep client URLs aligned with whatever port
+> and Compose stack use `**8050**` — keep client URLs aligned with whatever port
 > you actually started.
 
-**Cursor** — project file [`.mcp.json`](.mcp.json) at the repo root, or global /
+**Cursor** — project file `[.mcp.json](.mcp.json)` at the repo root, or global /
 per-project `~/.cursor/mcp.json`. Restart Cursor after edits.
 
 ```json
@@ -177,10 +190,12 @@ per-project `~/.cursor/mcp.json`. Restart Cursor after edits.
 
 **OpenAI ChatGPT Desktop** — config file (create if missing):
 
-| OS | Path |
-| --- | --- |
-| macOS | `~/Library/Application Support/ChatGPT/chatgpt_mcp_config.json` |
-| Windows | `%APPDATA%\OpenAI\ChatGPT\chatgpt_mcp_config.json` |
+
+| OS      | Path                                                            |
+| ------- | --------------------------------------------------------------- |
+| macOS   | `~/Library/Application Support/ChatGPT/chatgpt_mcp_config.json` |
+| Windows | `%APPDATA%\OpenAI\ChatGPT\chatgpt_mcp_config.json`              |
+
 
 Use the same `mcpServers` + `url` shape as Cursor when your ChatGPT build
 supports remote MCP over HTTP. If only stdio is offered, use the stdio block in
@@ -202,7 +217,7 @@ pip install -e /path/to/blender_mcp/mcp
 Ensure `blender-mcp` is on the `PATH` seen by the desktop app (use the full path
 to your venv binary if needed).
 
-**Cursor** — [`.mcp.json`](.mcp.json) or `~/.cursor/mcp.json`:
+**Cursor** — `[.mcp.json](.mcp.json)` or `~/.cursor/mcp.json`:
 
 ```json
 {
@@ -230,11 +245,13 @@ With a virtualenv:
 
 **Claude Desktop** — edit `claude_desktop_config.json`:
 
-| OS | Path |
-| --- | --- |
-| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
-| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+| OS      | Path                                                              |
+| ------- | ----------------------------------------------------------------- |
+| macOS   | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json`                     |
+| Linux   | `~/.config/Claude/claude_desktop_config.json`                     |
+
 
 ```json
 {
@@ -266,13 +283,15 @@ Restart Claude Desktop after saving.
 
 ### Client troubleshooting
 
-| Symptom | What to check |
-| --- | --- |
-| Connection refused (HTTP) | `make run` or `docker compose up` for `blender-mcp`; `curl` the `/health` URL |
-| `blender-mcp`: command not found | `pip install -e mcp/`; use absolute `command` in JSON |
-| Tools missing after config change | Fully quit and reopen the MCP client |
-| MCP works but Blender errors | Add-on disabled or TCP server not started in Blender |
-| `bim_*` failures | Bonsai/IfcOpenShell in Blender; run `bim_status` first |
+
+| Symptom                           | What to check                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| Connection refused (HTTP)         | `make run` or `docker compose up` for `blender-mcp`; `curl` the `/health` URL |
+| `blender-mcp`: command not found  | `pip install -e mcp/`; use absolute `command` in JSON                         |
+| Tools missing after config change | Fully quit and reopen the MCP client                                          |
+| MCP works but Blender errors      | Add-on disabled or TCP server not started in Blender                          |
+| `bim_`* failures                  | Bonsai/IfcOpenShell in Blender; run `bim_status` first                        |
+
 
 More workspace conventions:
 [workspace_config/guidelines.md](../workspace_config/guidelines.md).
@@ -368,7 +387,7 @@ More detail: [agents/README.md](agents/README.md).
 This project is not a replacement for Blender Lab's work. It is a downstream fork
 for BIM experimentation and automation. The Blender MCP add-on, server shape,
 tool discovery pattern, bundled Blender API/manual references, and many original
-scene tools come from [Blender MCP][Blender MCP].
+scene tools come from [Blender MCP](https://projects.blender.org/lab/blender_mcp).
 
 The fork-specific work focuses on:
 
@@ -388,18 +407,18 @@ The original Blender MCP source and Blender add-on files in this repository use
 GPL-3.0-or-later unless a file states otherwise.
 
 IfcOpenShell is used as a dependency through Bonsai/IfcOpenShell workflows. Its
-library components remain under [LGPL], while Bonsai and other IfcOpenShell
+library components remain under [LGPL](https://github.com/IfcOpenShell/IfcOpenShell/tree/master/COPYING.LESSER), while Bonsai and other IfcOpenShell
 applications may use GPL-3.0-or-later as documented by the IfcOpenShell project.
 
 Credit and license boundaries matter here:
 
 - Blender MCP and Blender documentation references belong to the Blender project
-  and Blender Authors.
+and Blender Authors.
 - IfcOpenShell and Bonsai belong to the IfcOpenShell community and their
-  contributors.
+contributors.
 - The BIM MCP tools, ADK agent runner, workspace rules, and workflow knowledge in
-  this fork are fork-specific additions by **Luis N.** — see
-  [CONTRIBUTORS.md](CONTRIBUTORS.md).
+this fork are fork-specific additions by **Luis N.** — see
+[CONTRIBUTORS.md](CONTRIBUTORS.md).
 
 ## Related Documentation
 
@@ -408,5 +427,3 @@ Credit and license boundaries matter here:
 - [Agent knowledge base](agents/knowledge/README.md)
 - [Workspace guidelines](../workspace_config/guidelines.md) — BIM session rules and Cursor MCP notes
 
-[Blender MCP]: https://projects.blender.org/lab/blender_mcp "Blender MCP"
-[LGPL]: https://github.com/IfcOpenShell/IfcOpenShell/tree/master/COPYING.LESSER "LGPL-3.0-or-later"
